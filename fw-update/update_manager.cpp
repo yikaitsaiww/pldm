@@ -12,6 +12,8 @@
 #include <fstream>
 #include <string>
 
+using namespace sdbusplus::bus::match::rules;
+
 PHOSPHOR_LOG2_USING;
 
 namespace pldm
@@ -22,6 +24,34 @@ namespace fw_update
 
 namespace fs = std::filesystem;
 namespace software = sdbusplus::xyz::openbmc_project::Software::server;
+
+void UpdateManager::onInterfacesRemoved(sdbusplus::message::message& msg)
+{
+    info("[Debug] UpdateManager::onInterfacesRemoved");
+
+    sdbusplus::message::object_path objectPath;
+    std::vector<std::string> interfaces;
+
+    msg.read(objectPath, interfaces);
+
+    info("[Debug] objectPath: {PATH}", "PATH", objectPath);
+
+    for (const auto& interface : interfaces) {
+        info("[Debug] interface: {INTF}", "INTF", interface);
+    }
+
+    /*
+    // Check if it's specific software_ID
+    if (objectPath.str().find("/xyz/openbmc_project/software/") == 0 && 
+        objectPath.str() != "/xyz/openbmc_project/software")
+    {
+        info("[Debug] Software object removed: '{OBJP}' ", "OBJP", objectPath.str());
+
+        // Get software_ID
+        std::string softwareId = objectPath.substr(objectPath.find_last_of('/') + 1);
+    }
+    */
+}
 
 int UpdateManager::processPackage(const std::filesystem::path& packageFilePath)
 {
@@ -103,6 +133,15 @@ int UpdateManager::processPackage(const std::filesystem::path& packageFilePath)
     // Populate object path with the hash of the package version
     size_t versionHash = std::hash<std::string>{}(parser->pkgVersion);
     objPath = swRootPath + std::to_string(versionHash);
+
+    // Monitor software_path InterfacesRemoved signal
+    info("[Debug] UpdateManager::interfacesRemovedMatch.emplace");
+    interfacesRemovedMatch.emplace(
+        utils::DBusHandler::getBus(),
+        interfacesRemoved() + path("/xyz/openbmc_project/software"),
+        [this](sdbusplus::message::message& msg) {
+            this->onInterfacesRemoved(msg);
+        });
 
     package.seekg(0);
     packageHeader.resize(parser->pkgHeaderSize);

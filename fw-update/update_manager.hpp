@@ -16,6 +16,9 @@
 #include <tuple>
 #include <unordered_map>
 
+#include <sdbusplus/bus.hpp>
+#include <sdbusplus/bus/match.hpp>
+
 namespace pldm
 {
 
@@ -65,6 +68,10 @@ class UpdateManager
      */
     Response handleRequest(mctp_eid_t eid, uint8_t command,
                            const pldm_msg* request, size_t reqMsgLen);
+
+    void onInterfacesRemoved(sdbusplus::message::message& msg);
+
+    std::optional<sdbusplus::bus::match::match> interfacesRemovedMatch;
 
     int processPackage(const std::filesystem::path& packageFilePath);
 
